@@ -25,7 +25,7 @@
     
 - **注意**: 可执行文件一定要跟**config**目录在同一个目录夹下。
 
-
+---
 ### 运行图示
 ![home](https://github.com/moyuanz/hahajing/blob/master/doc/home.png)
 ![result](https://github.com/moyuanz/hahajing/blob/master/doc/result.png)
