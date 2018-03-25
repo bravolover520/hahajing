@@ -1,0 +1,441 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+        crossorigin="anonymous">
+
+    <title>哈哈镜</title>
+</head>
+
+<body>
+    <div style="max-width:50rem; margin:10% auto 0 auto">
+        <div style="text-align:center">
+            <h1>
+                <span class="badge" style="color: #ffffff; background-color: purple">哈哈镜</span>
+            </h1>
+            <h6>
+                <span class="badge" style="color: #ffffff; background-color: purple">And I swear that I don't have a gun</span>
+            </h6>
+        </div>
+        <div style="padding-left:5%; padding-right:5%">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="电视剧名，电影名" id="keyword">
+                <button class="btn btn-primary btn-search" type="button" id="search">搜一下</button>
+            </div>
+            <div style="margin-top:0.5rem">
+                <span class="badge badge-danger">热门搜索</span>
+                {{range $i, $v := .SearchStats.HotSearches}}
+                <a href='javascript:send("{{$v}}");' style="margin-left:0.5rem">{{$v}}</a>
+                {{end}}
+            </div>
+            <div style="margin-top:0.5rem">
+                <span class="badge badge-success">最近搜索</span>
+                {{range $i, $v := .SearchStats.LatestSearches}}
+                <a href='javascript:send("{{$v}}");' style="margin-left:0.5rem">{{$v}}</a>
+                {{end}}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
+
+    <script>
+        String.prototype.format = function (args) {
+            var result = this;
+            if (arguments.length > 0) {
+                if (arguments.length == 1 && typeof (args) == "object") {
+                    for (var key in args) {
+                        if (args[key] != undefined) {
+                            var reg = new RegExp("({" + key + "})", "g");
+                            result = result.replace(reg, args[key]);
+                        }
+                    }
+                }
+                else {
+                    for (var i = 0; i < arguments.length; i++) {
+                        if (arguments[i] != undefined) {
+                            var reg = new RegExp("({)" + i + "(})", "g");
+                            result = result.replace(reg, arguments[i]);
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
+        function getOrgName(file) {
+            return file.OrgName.replace(/[ ·\t/\\\*\?\!<>\|\-:,\.;'"\(\)\[\]‘’“”；、：，。？！]/g, "_")
+        }
+
+        function getFileDivID(file) {
+            var divID
+            var orgName = getOrgName(file)
+            if (file.Type == 0) {
+                divID = orgName + "_movie"
+            } else {
+                divID = orgName + "_tv"
+            }
+
+            return divID
+        }
+
+        function getSeasonDivID(file) {
+            var seasonDivID
+            var orgName = getOrgName(file)
+            if (file.Type == 0) {
+                seasonDivID = orgName
+            } else {
+                seasonDivID = orgName + "_s" + file.Season.toString()
+            }
+
+            return seasonDivID
+        }
+
+        function getSeasonDivNameWithoutPrefix(file) {
+            var divName
+            if (file.OrgName == file.ChName) {
+                divName = "{0}".format(file.OrgName)
+            } else {
+                divName = "{0}({1})".format(file.ChName, file.OrgName)
+            }
+
+            if (file.Season != -1) {
+                divName += " 第{0}季".format(file.Season)
+            }
+
+            return divName
+        }
+
+        function getSeasonDivName(file) {
+            var divName = getSeasonDivNameWithoutPrefix(file)
+
+            if (file.Type == 0) {
+                divName = "电影: " + divName
+            } else {
+                divName = "电视剧: " + divName
+            }
+
+            return divName
+        }
+
+        function getSeasonOrMovieDiv(file) {
+            var fileDivID = getFileDivID(file)
+            var seasonDivID = getSeasonDivID(file)
+            var orgName = getOrgName(file)
+
+            // new file div
+            if ($("div#" + fileDivID).length == 0) {
+                var fileDiv = '<div id="{0}"></div>'.format(fileDivID)
+
+                if (file.Type == 0) {
+                    $("div#content").append(fileDiv)
+                } else {
+                    $("div#content").prepend(fileDiv)
+                }
+            }
+
+            // new season or movie div
+            if ($("div#" + seasonDivID).length == 0) {
+                var divName = getSeasonDivName(file)
+                var divColor
+                if (file.Type == 0) {
+                    divColor = "danger"
+                } else {
+                    divColor = "warning"
+                }
+
+                var div = '<div id="{0}"><div class="alert alert-{1}">{2}</div></div>'.format(seasonDivID, divColor, divName)
+                var inserted = false
+                for (var i = file.Season - 1; i > 0; i--) {
+                    var seasonDivIDTemp = orgName + "_s" + i.toString()
+                    var divTemp = $("div#" + seasonDivIDTemp)
+                    if (divTemp.length > 0) {
+                        divTemp.after(div)
+                        inserted = true
+                        break
+                    }
+                }
+
+                if (!inserted) {
+                    if (file.Type == 0) {
+                        $("div#" + fileDivID).append(div)
+                    } else {
+                        $("div#" + fileDivID).prepend(div)
+                    }
+                }
+            }
+
+            return $("div#" + seasonDivID)
+        }
+
+        function getEpisodeOrMovieTableBody(file, seasonOrMovieDiv) {
+            var episodeTableID
+            var orgName = getOrgName(file)
+            var season = "_s" + file.Season.toString()
+            if (file.Type == 0) {
+                episodeTableID = orgName + "_table"
+            } else {
+                episodeTableID = orgName + season + "_e" + file.Episode.toString()
+            }
+
+            // new div
+            if ($("table#" + episodeTableID).length == 0) {
+                var table =
+                    '<table id="{0}" class="table table-bordered table-condensed" style="word-break:break-all">\
+                        <thead><tr><td>名字</td><td style="word-break:keep-all;white-space:nowrap">大小(M)</td><td style="word-break:keep-all">可用源</td></tr></thead><tbody></tbody>\
+                    </table>'.format(episodeTableID)
+
+                var div
+                if (file.Type == 0) {
+                    div = '<div>{0}</div>'.format(table)
+                } else {
+                    var divName = "第{0}集".format(file.Episode)
+                    div = '<div><h6><span class="badge badge-success">{0}</span></h6>{1}</div>'.format(divName, table)
+                }
+
+                var inserted = false
+                for (var i = file.Episode - 1; i > 0; i--) {
+                    var episodeTableIDTemp = orgName + season + "_e" + i.toString()
+                    var tableTemp = $("table#" + episodeTableIDTemp)
+                    if (tableTemp.length > 0) {
+                        tableTemp.parent().after(div)
+                        inserted = true
+                        break
+                    }
+                }
+
+                if (!inserted) {
+                    seasonOrMovieDiv.children().first().after(div)
+                }
+            }
+
+            return $("table#{0}>tbody".format(episodeTableID))
+        }
+
+        function getFileNavDivID(file) {
+            var divID
+            var orgName = getOrgName(file)
+            if (file.Type == 0) {
+                divID = "nav_" + orgName + "_movie"
+            } else {
+                divID = "nav_" + orgName + "_tv"
+            }
+
+            return divID
+        }
+
+        function createNavPills(file) {
+            var fileNavDivID = getFileNavDivID(file)
+            var seasonDivID = getSeasonDivID(file)
+            var seasonDivName = getSeasonDivNameWithoutPrefix(file)
+            var orgName = getOrgName(file)
+
+            // new file nav div
+            if ($("div#" + fileNavDivID).length == 0) {
+                var fileDiv = '<div id="{0}"></div>'.format(fileNavDivID)
+
+                if (file.Type == 0) {
+                    $("#nav_movie > div").append(fileDiv)
+                } else {
+                    $("#nav_tv > div").prepend(fileDiv)
+                }
+            }
+
+            var divSelector = "div#" + fileNavDivID
+            if ($((divSelector + ' a[href="#{0}"]').format(seasonDivID)).length == 0) {
+                var a = '<a class="dropdown-item" href="#{0}">{1}</a>'.format(seasonDivID, seasonDivName)
+
+                var inserted = false
+                for (var i = file.Season - 1; i > 0; i--) {
+                    var seasonDivIDTemp = orgName + "_s" + i.toString()
+                    var a1 = $((divSelector + ' a[href="#{0}"]').format(seasonDivIDTemp))
+                    if (a1.length > 0) {
+                        a1.after(a)
+                        inserted = true
+                        break
+                    }
+                }
+
+                if (!inserted) {
+                    if (file.Type == 0) {
+                        $(divSelector).append(a)
+                    } else {
+                        $(divSelector).prepend(a)
+                    }
+                }
+
+                // bind click event for anchor
+                $('a.dropdown-item').click(function (event) {
+                    event.preventDefault();
+                    $($(this).attr('href'))[0].scrollIntoView();
+                    scrollBy(0, -70);
+                });
+            }
+        }
+
+        function addFile(file) {
+            createNavPills(file)
+            var seasonOrMovieDiv = getSeasonOrMovieDiv(file)
+            var tableBody = getEpisodeOrMovieTableBody(file, seasonOrMovieDiv)
+
+            var size = Math.floor(file.Size / (1024 * 1024))
+            if (size == 0) {
+                size = "小于1"
+            }
+            var row = '<tr><td><a href="{0}">{1}</a></td><td>{2}</td><td>{3}</td></tr>'.format(file.Link, file.Name, size, file.Avail)
+            tableBody.append(row)
+        }
+
+        var ws; // global websocket object
+
+        // proxy for sending data to websocket
+        this.send2WebSocket = function (message) {
+            this.waitForWebSocketConnection(function () {
+                ws.send(message);
+            }, 1000);
+        };
+
+        this.waitForWebSocketConnection = function (callback, interval) {
+            if (ws.readyState === 1) {
+                callback();
+            } else {
+                var that = this;
+
+                setTimeout(function () {
+                    that.waitForWebSocketConnection(callback, interval);
+                }, interval);
+            }
+        };
+
+        var searchStatus = -1
+        var searchTimerID
+        function startSearch() {
+            searchStatus = 1
+            $("#content").text("正在搜索")
+            searchTimerID = setTimeout("waitingSearch()", 1000)
+        }
+
+        function waitingSearch() {
+            switch (searchStatus) {
+                case 0:
+                    searchStatus = 1
+                    $("#content").text("正在搜索")
+                    break
+                case 1:
+                    searchStatus = 2
+                    $("#content").text("正在搜索.")
+                    break
+                case 2:
+                    searchStatus = 3
+                    $("#content").text("正在搜索..")
+                    break
+                case 3:
+                    searchStatus = 0
+                    $("#content").text("正在搜索...")
+                    break
+            }
+
+            if (searchStatus != -1) {
+                searchTimerID = setTimeout("waitingSearch()", 1000)
+            }
+        }
+
+        function stopSearch() {
+            if (searchStatus != -1) {
+                searchStatus = -1
+                clearTimeout(searchTimerID)
+
+                $("#content").empty()
+            }
+        }
+
+        function send(data) {
+            // new websocket
+            if (ws != undefined) {
+                ws.close()
+            }
+
+            ws = new WebSocket("{{.Host}}");
+            ws.onmessage = function (e) {
+                stopSearch()
+
+                var file = $.parseJSON(e.data)
+                if (file.hasOwnProperty("Error")) {
+                    $('#content').append(file.Error)
+                } else {
+                    addFile(file)
+                }
+            }
+
+            // send to search input to server
+            if (data == undefined) data = $('#keyword').val()
+            if (data.length == 0) data = " "
+            send2WebSocket(data)
+
+            // clear body
+            $("body").removeClass()
+            $("body").empty()
+
+            // navbar
+            var navbar = '\
+            <nav class="navbar navbar-expand-sm navbar-dark fixed-top" style="background-color: purple">\
+                <a class="navbar-brand" href="/">主页</a>\
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">\
+                    <span class="navbar-toggler-icon"></span>\
+                </button>\
+                <div class="collapse navbar-collapse" id="navbarSupportedContent">\
+                    <ul class="navbar-nav mr-auto">\
+                        <li class="nav-item dropdown" id="nav_tv">\
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">电视剧</a>\
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdown"></div>\
+                        </li>\
+                        <li class="nav-item dropdown" id="nav_movie">\
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">电影</a>\
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdown"></div>\
+                        </li>\
+                    </ul>\
+                    <form class="form-inline my-2 my-lg-0">\
+                        <input type="text" class="form-control" placeholder="电视剧名，电影名" id="keyword">\
+                        <button class="btn btn-primary btn-search" type="button" id="search">搜一下</button>\
+                    </form>\
+                </div>\
+            </nav>\
+            '
+            $("body").append(navbar)
+
+            // div for file links
+            $("body").append('<div id="content" style="padding-left: 10px;padding-right: 10px"></div>');
+            $("body").css("padding-top", "70px");
+
+            bindSearchEvent()
+
+            // show waiting search result status
+            startSearch()
+        }
+
+        function bindSearchEvent() {
+            $('#search').click(function () {
+                send(undefined)
+            });
+
+            $('#keyword').bind('keypress', function (e) {
+                if (e.keyCode == "13") {
+                    send(undefined)
+                }
+            });
+        }
+
+        $(function () {
+            bindSearchEvent()
+        });
+    </script>
+</body>
+
+</html>
