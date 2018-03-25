@@ -27,6 +27,7 @@
     
 - **Note**: Make sure executable file is at same directory with **config** directory.
 
+---
 ### What it looks like
 ![home](https://github.com/moyuanz/hahajing/blob/master/doc/home.png)
 ![result](https://github.com/moyuanz/hahajing/blob/master/doc/result.png)
